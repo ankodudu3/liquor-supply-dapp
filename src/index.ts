@@ -152,47 +152,118 @@ type Errors = typeof Errors.tsType;
 // Canister Methods
 export default Canister({
   registerUser: update([UserPayload], Result(text, Errors), (payload) => {
-    if (!payload.username) {
-      return Err({ InvalidPayload: "Username is required" });
-    }
-    const existingUser = usersStorage.get(payload.username);
-    if (existingUser) {
-      return Err({ UserAlreadyExists: `User with username ${payload.username} already exists` });
-    }
+  // Validate username
+  if (!payload.username || payload.username.trim().length === 0) {
+    return Err({ InvalidPayload: "Username is required and cannot be empty" });
+  }
 
-    const createUser: User = {
-      id: ic.caller(),
-      username: payload.username,
-      role: payload.role,
-      points: 0n,
-      contactInfo: payload.contactInfo,
-    };
+  // Validate contactInfo (e.g., check if it's a valid email or phone number)
+  if (!validateContactInfo(payload.contactInfo)) {
+    return Err({ InvalidPayload: "Invalid contact information" });
+  }
 
-    usersStorage.insert(payload.username, createUser);
-    return Ok(`User with username ${payload.username} created successfully`);
-  }),
+  // Validate role
+  const validRoles = ["user", "admin", "staff"]; // Define allowed roles
+  if (!validRoles.includes(payload.role)) {
+    return Err({ InvalidPayload: `Role must be one of the following: ${validRoles.join(", ")}` });
+  }
 
-  addLiquorProduct: update([LiquorProductPayload], Result(text, Errors), (payload) => {
-    if (!payload.name) {
-      return Err({ InvalidPayload: "Product name is required" });
-    }
-    const existingProduct = liquorProductsStorage.get(payload.name);
-    if (existingProduct) {
-      return Err({ ProductAlreadyExists: `Product with name ${payload.name} already exists` });
-    }
+  // Ensure the user is unique by their Principal (caller)
+  const callerId = ic.caller().toText();
+  const existingUser = usersStorage.values().find(user => user.id.toText() === callerId);
+  if (existingUser) {
+    return Err({ UserAlreadyExists: `User with Principal ID ${callerId} already exists` });
+  }
 
-    const product: LiquorProduct = {
-      id: ic.caller().toText(),
-      ...payload,
-    };
+  // Create and store the new user
+  const newUser: User = {
+    id: ic.caller(),
+    username: payload.username,
+    role: payload.role,
+    points: 0n,
+    contactInfo: payload.contactInfo,
+  };
 
-    liquorProductsStorage.insert(payload.name, product);
-    return Ok(`Product ${payload.name} added successfully`);
-  }),
+  usersStorage.insert(callerId, newUser);
+  return Ok(`User with username ${payload.username} registered successfully`);
+}),
 
-  listAllProducts: query([], Vec(LiquorProduct), () => {
-    return liquorProductsStorage.values();
-  }),
+ addLiquorProduct: update([LiquorProductPayload], Result(text, Errors), (payload) => {
+  // Validate user role for authorization
+  const callerId = ic.caller().toText();
+  const user = usersStorage.get(callerId);
+  if (!user) {
+    return Err({ Unauthorized: "User not registered" });
+  }
+  if (user.role !== "admin" && user.role !== "staff") {
+    return Err({ Unauthorized: "You are not authorized to add liquor products" });
+  }
+
+  // Validate required fields
+  if (!payload.name || payload.name.trim().length === 0) {
+    return Err({ InvalidPayload: "Product name is required and cannot be empty" });
+  }
+
+  // Sanitize inputs (e.g., trim unnecessary whitespace)
+  const sanitizedProductName = payload.name.trim();
+
+  // Validate numeric fields are positive
+  if (payload.alcoholContent < 0n || payload.costPrice < 0n || payload.retailPrice < 0n || payload.currentStock < 0n) {
+    return Err({ InvalidPayload: "Numeric fields must be positive" });
+  }
+
+  // Generate a unique ID for the liquor product
+  const uniqueId = generateId();
+
+  // Create the new LiquorProduct record
+  const product: LiquorProduct = {
+    id: uniqueId.toText(),
+    userId: callerId,
+    name: sanitizedProductName,
+    type: payload.type,
+    brand: payload.brand,
+    alcoholContent: payload.alcoholContent,
+    batchNumber: payload.batchNumber,
+    vintageYear: payload.vintageYear,
+    bottleSize: payload.bottleSize,
+    costPrice: payload.costPrice,
+    retailPrice: payload.retailPrice,
+    currentStock: payload.currentStock,
+    expiryDate: payload.expiryDate,
+  };
+
+  // Store the product in the storage map
+  liquorProductsStorage.insert(uniqueId.toText(), product);
+
+  return Ok(`Product ${sanitizedProductName} added successfully with ID ${uniqueId.toText()}`);
+}),
+
+  
+  listAllProducts: query([nat64, nat64], Result(Vec(LiquorProduct), Errors), (offset, limit) => {
+  // Validate user role for authorization
+  const callerId = ic.caller().toText();
+  const user = usersStorage.get(callerId);
+  if (!user) {
+    return Err({ Unauthorized: "User not registered" });
+  }
+  if (user.role !== "admin" && user.role !== "staff") {
+    return Err({ Unauthorized: "You are not authorized to view products" });
+  }
+
+  // Validate pagination parameters
+  if (offset < 0n || limit <= 0n) {
+    return Err({ InvalidPayload: "Offset must be non-negative, and limit must be positive" });
+  }
+
+  // Retrieve all products
+  const allProducts = liquorProductsStorage.values();
+
+  // Apply pagination
+  const paginatedProducts = allProducts.slice(Number(offset), Number(offset + limit));
+
+  return Ok(paginatedProducts);
+}),
+
 
   sellLiquorProduct: update([SaleRecordPayload], Result(text, Errors), (payload) => {
     const product = liquorProductsStorage.get(payload.liquorProductId);
@@ -226,23 +297,50 @@ export default Canister({
   }),
 
   adjustInventory: update([InventoryAdjustmentPayload], Result(text, Errors), (payload) => {
-    const product = liquorProductsStorage.get(payload.liquorProductId);
-    if (!product) {
-      return Err({ ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist` });
-    }
+  // Validate user role for authorization
+  const callerId = ic.caller().toText();
+  const user = usersStorage.get(callerId);
+  if (!user) {
+    return Err({ Unauthorized: "User not registered" });
+  }
+  if (user.role !== "admin" && user.role !== "staff") {
+    return Err({ Unauthorized: "You are not authorized to adjust inventory" });
+  }
 
-    product.currentStock += payload.quantityChanged;
+  // Retrieve the product
+  const product = liquorProductsStorage.get(payload.liquorProductId);
+  if (!product) {
+    return Err({ ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist` });
+  }
 
-    const adjustment: InventoryAdjustment = {
-      id: ic.caller().toText(),
-      ...payload,
-      adjustmentDate: ic.time(),
-    };
+  // Validate that the inventory adjustment will not result in negative stock
+  const newStock = product.currentStock + payload.quantityChanged;
+  if (newStock < 0n) {
+    return Err({ InvalidPayload: `Adjustment would result in negative stock. Current stock is ${product.currentStock}` });
+  }
 
-    liquorProductsStorage.insert(product.id, product);
-    inventoryAdjustmentsStorage.insert(adjustment.id, adjustment);
-    return Ok(`Inventory adjusted for product ${product.name}`);
-  }),
+  // Generate a unique ID for the inventory adjustment
+  const adjustmentId = generateId().toText();
+
+  // Apply the inventory adjustment
+  product.currentStock = newStock;
+
+  const adjustment: InventoryAdjustment = {
+    id: adjustmentId,
+    liquorProductId: payload.liquorProductId,
+    quantityChanged: payload.quantityChanged,
+    reason: payload.reason,
+    adjustedBy: callerId,
+    adjustmentDate: ic.time(),
+  };
+
+  // Update the storage
+  liquorProductsStorage.insert(product.id, product);
+  inventoryAdjustmentsStorage.insert(adjustmentId, adjustment);
+
+  return Ok(`Inventory adjusted for product ${product.name}. New stock: ${product.currentStock}`);
+}),
+
 
   listAllInventoryAdjustments: query([], Vec(InventoryAdjustment), () => {
     return inventoryAdjustmentsStorage.values();
