@@ -56221,21 +56221,21 @@ var src_default = Canister({
     usersStorage.insert(payload.username, createUser);
     return Ok(`User with username ${payload.username} created successfully`);
   }),
-  addLiquorProduct: update2([LiquorProductPayload], Result(text, Errors), (payload) => {
-    if (!payload.name) {
-      return Err({ InvalidPayload: "Product name is required" });
-    }
-    const existingProduct = liquorProductsStorage.get(payload.name);
-    if (existingProduct) {
-      return Err({ ProductAlreadyExists: `Product with name ${payload.name} already exists` });
-    }
-    const product = {
-      id: ic.caller().toText(),
-      ...payload
-    };
-    liquorProductsStorage.insert(payload.name, product);
-    return Ok(`Product ${payload.name} added successfully`);
-  }),
+  // addLiquorProduct: update([LiquorProductPayload], Result(text, Errors), (payload) => {
+  //   if (!payload.name) {
+  //     return Err({ InvalidPayload: "Product name is required" });
+  //   }
+  //   const existingProduct = liquorProductsStorage.get(payload.name);
+  //   if (existingProduct) {
+  //     return Err({ ProductAlreadyExists: `Product with name ${payload.name} already exists` });
+  //   }
+  //   const product: LiquorProduct = {
+  //     id: ic.caller().toText(),
+  //     ...payload,
+  //   };
+  //   liquorProductsStorage.insert(payload.name, product);
+  //   return Ok(`Product ${payload.name} added successfully`);
+  // }),
   listAllProducts: query2([], Vec2(LiquorProduct), () => {
     return liquorProductsStorage.values();
   }),
