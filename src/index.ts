@@ -14,10 +14,6 @@ import {
   text,
   update,
   Opt,
-  Null,
-  None,
-  Some,
-  bool
 } from "azle/experimental";
 
 // Record Types
