@@ -598,6 +598,9 @@ export default Canister({
         // Generate a unique id
         const productId = generateId();
 
+        // Increase the current stock by the quantity added
+        payload.currentStock += 1n;
+
         const product: LiquorProduct = {
           id: productId,
           ...payload,
@@ -796,18 +799,19 @@ export default Canister({
         }
 
         // Calculate total price
-        const totalPrice = payload.quantity * product.retailPrice;
+        const totalPrice = payload.quantity * product.costPrice;
 
         // Create sale record
-        const saleId = generateId();
-        const saleDate = new Date().toISOString();
-
         const saleRecord: SaleRecord = {
-          id: saleId,
+          id: generateId(),
+          liquorProductId: payload.liquorProductId,
+          salesStaffId: payload.salesStaffId,
+          quantity: payload.quantity,
           costPrice: product.costPrice,
-          ...payload,
-          totalPrice,
-          saleDate,
+          totalPrice: totalPrice,
+          buyerId: payload.buyerId,
+          customerAge: payload.customerAge,
+          saleDate: new Date().toISOString(),
         };
 
         // Update product stock
@@ -817,10 +821,11 @@ export default Canister({
           currentStock: updatedStock,
         };
 
+        // Save the changes
         liquorProductsStorage.insert(payload.liquorProductId, updatedProduct);
-        saleRecordsStorage.insert(saleId, saleRecord);
+        saleRecordsStorage.insert(saleRecord.id, saleRecord);
 
-        return Ok(`Product ${product.name} sold successfully`);
+        return Ok(saleRecord); // Return the sale record instead of a text message
       } catch (error) {
         return Err({
           SystemError: `Error selling product: ${
@@ -868,18 +873,22 @@ export default Canister({
           });
         }
 
+        // Update product stock
         product.currentStock += payload.quantityChanged;
+
+        // Generate ID for the adjustment
+        const adjustmentId = generateId();
 
         // Create inventory adjustment record
         const adjustment: InventoryAdjustment = {
-          id: generateId(),
+          id: adjustmentId, // Ensure ID is generated here
           ...payload,
           adjustmentDate: new Date().toISOString(),
         };
 
         liquorProductsStorage.insert(payload.liquorProductId, product);
         inventoryAdjustmentsStorage.insert(adjustment.id, adjustment);
-        return Ok(`Inventory adjusted for product ${product.name}`);
+        return Ok(adjustment); // Return the full adjustment record
       } catch (error) {
         return Err({
           SystemError: `Error adjusting inventory: ${
@@ -927,14 +936,19 @@ export default Canister({
     Result(text, Errors),
     (payload) => {
       try {
+
+        // Supply Chain Event ID
+        const supplyChainEventId = generateId();
+
+
         const event: SupplyChainEvent = {
-          id: ic.caller().toText(),
+          id: supplyChainEventId,
           ...payload,
           date: ic.time(),
         };
 
         supplyChainEventsStorage.insert(event.id, event);
-        return Ok(`Supply chain event of type ${payload.eventType} recorded`);
+        return Ok(`Supply chain event of  ${payload.location} recorded`);
       } catch (error) {
         return Err({
           SystemError: `Error logging supply chain event: ${

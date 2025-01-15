@@ -56483,6 +56483,7 @@ var src_default = Canister({
           return Err({ InvalidPayload: "Product name is required" });
         }
         const productId = generateId();
+        payload.currentStock += 1n;
         const product = {
           id: productId,
           ...payload
@@ -56644,15 +56645,17 @@ var src_default = Canister({
             AgeRestriction: "Customer must be 18 years or older to purchase alcohol"
           });
         }
-        const totalPrice = payload.quantity * product.retailPrice;
-        const saleId = generateId();
-        const saleDate = (/* @__PURE__ */ new Date()).toISOString();
+        const totalPrice = payload.quantity * product.costPrice;
         const saleRecord = {
-          id: saleId,
+          id: generateId(),
+          liquorProductId: payload.liquorProductId,
+          salesStaffId: payload.salesStaffId,
+          quantity: payload.quantity,
           costPrice: product.costPrice,
-          ...payload,
           totalPrice,
-          saleDate
+          buyerId: payload.buyerId,
+          customerAge: payload.customerAge,
+          saleDate: (/* @__PURE__ */ new Date()).toISOString()
         };
         const updatedStock = product.currentStock - payload.quantity;
         const updatedProduct = {
@@ -56660,8 +56663,8 @@ var src_default = Canister({
           currentStock: updatedStock
         };
         liquorProductsStorage.insert(payload.liquorProductId, updatedProduct);
-        saleRecordsStorage.insert(saleId, saleRecord);
-        return Ok(`Product ${product.name} sold successfully`);
+        saleRecordsStorage.insert(saleRecord.id, saleRecord);
+        return Ok(saleRecord);
       } catch (error2) {
         return Err({
           SystemError: `Error selling product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
@@ -56703,14 +56706,16 @@ var src_default = Canister({
           });
         }
         product.currentStock += payload.quantityChanged;
+        const adjustmentId = generateId();
         const adjustment = {
-          id: generateId(),
+          id: adjustmentId,
+          // Ensure ID is generated here
           ...payload,
           adjustmentDate: (/* @__PURE__ */ new Date()).toISOString()
         };
         liquorProductsStorage.insert(payload.liquorProductId, product);
         inventoryAdjustmentsStorage.insert(adjustment.id, adjustment);
-        return Ok(`Inventory adjusted for product ${product.name}`);
+        return Ok(adjustment);
       } catch (error2) {
         return Err({
           SystemError: `Error adjusting inventory: ${error2 instanceof Error ? error2.message : "Unknown error"}`
@@ -56751,13 +56756,14 @@ var src_default = Canister({
     Result(text, Errors),
     (payload) => {
       try {
+        const supplyChainEventId = generateId();
         const event = {
-          id: ic.caller().toText(),
+          id: supplyChainEventId,
           ...payload,
           date: ic.time()
         };
         supplyChainEventsStorage.insert(event.id, event);
-        return Ok(`Supply chain event of type ${payload.eventType} recorded`);
+        return Ok(`Supply chain event of type ${payload.location} recorded`);
       } catch (error2) {
         return Err({
           SystemError: `Error logging supply chain event: ${error2 instanceof Error ? error2.message : "Unknown error"}`
