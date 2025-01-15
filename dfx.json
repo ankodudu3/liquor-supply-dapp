@@ -1,13 +1,13 @@
 {
     "canisters": {
-        "hello_world": {
+        "liquor_supply_dapp": {
             "type": "azle",
             "main": "src/index.ts",
             "custom": {
                 "experimental": true
             },
             "declarations": {
-                "output": "test/dfx_generated/hello_world",
+                "output": "test/dfx_generated/liquor_supply_dapp",
                 "node_compatibility": true
             }
         }

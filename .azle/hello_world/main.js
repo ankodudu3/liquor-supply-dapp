@@ -56101,64 +56101,149 @@ var src_exports = {};
 __export(src_exports, {
   default: () => src_default
 });
+var UserRole = Variant2({
+  Admin: Null2,
+  Manager: Null2,
+  Staff: Null2,
+  Customer: Null2
+});
 var User = Record2({
-  id: Principal3,
+  id: text,
+  // Unique identifier for the user
+  owner: Principal3,
+  // Principal ID of the user (from IC)
   username: text,
-  role: text,
+  // Unique username
+  role: UserRole,
+  // User's role in the system
   points: nat64,
-  contactInfo: text
+  // Reward/reputation points
+  contactInfo: text,
+  // User's contact information
+  createdAt: text,
+  // Timestamp of user creation
+  lastUpdated: text
+  // Timestamp of last update
+});
+var LiquorType = Variant2({
+  Whiskey: Null2,
+  Vodka: Null2,
+  Rum: Null2,
+  Gin: Null2,
+  Tequila: Null2,
+  Brandy: Null2,
+  Liqueur: Null2,
+  Other: Null2
+});
+var LiquorBrand = Variant2({
+  Chrome: Null2,
+  Best: Null2,
+  County: Null2,
+  JohnnieWalker: Null2,
+  JackDaniels: Null2,
+  Smirnoff: Null2,
+  Bacardi: Null2,
+  Tanqueray: Null2,
+  Patron: Null2,
+  Hennessy: Null2,
+  Other: Null2
 });
 var LiquorProduct = Record2({
   id: text,
-  userId: text,
+  // Unique identifier for the product
   name: text,
-  type: text,
-  brand: text,
+  // Name of the product
+  liquorType: LiquorType,
+  // Type of liquor product
+  brand: LiquorBrand,
+  // Brand of the product
   alcoholContent: nat64,
+  // Alcohol content percentage
   batchNumber: text,
+  // Batch number of the product
   vintageYear: Opt2(text),
+  // Vintage year (optional)
   bottleSize: text,
+  // Size of the bottle (e.g., 750ml)
   costPrice: nat64,
+  // Cost price of the product
   retailPrice: nat64,
+  // Retail price of the product
   currentStock: nat64,
+  // Current stock quantity
   expiryDate: Opt2(text)
+  // Expiry date of the product (optional)
+});
+var SupplyChainEventType = Variant2({
+  Received: Null2,
+  Sold: Null2,
+  Adjusted: Null2,
+  Damaged: Null2,
+  Expired: Null2
 });
 var SupplyChainEvent = Record2({
   id: text,
+  // Unique identifier for the event
   liquorProductId: text,
-  eventType: text,
+  // ID of the liquor product
+  eventType: SupplyChainEventType,
+  // Type of the event
   location: text,
+  // Location of the event
   quantity: nat64,
+  // Quantity of the product
   date: nat64,
+  // Date of the event
   participantId: text
+  // ID of the participant
 });
 var SaleRecord = Record2({
   id: text,
+  // Unique identifier for the sale record
   liquorProductId: text,
-  quantity: nat64,
-  totalPrice: nat64,
-  saleDate: nat64,
+  // ID of the liquor product
   salesStaffId: text,
-  customerAge: nat64
+  // ID of the sales staff
+  quantity: nat64,
+  // Quantity of the product sold
+  costPrice: nat64,
+  // Cost price of the product
+  totalPrice: nat64,
+  // Total price of the sale
+  buyerId: text,
+  // ID of the buyer
+  customerAge: nat64,
+  // Age of the buyer
+  saleDate: text
+  // Date of the sale
 });
 var InventoryAdjustment = Record2({
   id: text,
+  // Unique identifier for the adjustment
   liquorProductId: text,
+  // ID of the liquor product
+  staffId: text,
+  // ID of the staff member
   quantityChanged: nat64,
+  // Quantity of the product adjusted
   reason: text,
-  adjustedBy: text,
-  adjustmentDate: nat64
+  // Reason for the adjustment
+  adjustmentDate: text
+  // Date of the adjustment
 });
 var UserPayload = Record2({
   username: text,
-  role: text,
+  role: UserRole,
   contactInfo: text
+});
+var GetAllUsersPayload = Record2({
+  page: nat64,
+  pageSize: nat64
 });
 var LiquorProductPayload = Record2({
   name: text,
-  userId: text,
-  type: text,
-  brand: text,
+  liquorType: LiquorType,
+  brand: LiquorBrand,
   alcoholContent: nat64,
   batchNumber: text,
   vintageYear: Opt2(text),
@@ -56170,28 +56255,25 @@ var LiquorProductPayload = Record2({
 });
 var SupplyChainEventPayload = Record2({
   liquorProductId: text,
-  eventType: text,
+  eventType: SupplyChainEventType,
   location: text,
   quantity: nat64,
   participantId: text
 });
 var SaleRecordPayload = Record2({
   liquorProductId: text,
-  quantity: nat64,
   salesStaffId: text,
+  quantity: nat64,
+  buyerId: text,
   customerAge: nat64
 });
 var InventoryAdjustmentPayload = Record2({
   liquorProductId: text,
+  staffId: text,
   quantityChanged: nat64,
   reason: text,
   adjustedBy: text
 });
-var usersStorage = StableBTreeMap(0);
-var liquorProductsStorage = StableBTreeMap(1);
-var supplyChainEventsStorage = StableBTreeMap(2);
-var saleRecordsStorage = StableBTreeMap(3);
-var inventoryAdjustmentsStorage = StableBTreeMap(4);
 var Errors = Variant2({
   UserAlreadyExists: text,
   UserDoesNotExist: text,
@@ -56200,100 +56282,524 @@ var Errors = Variant2({
   InsufficientStock: text,
   InvalidPayload: text,
   Unauthorized: text,
-  AgeRestriction: text
+  AgeRestriction: text,
+  SystemError: text
 });
+var usersStorage = StableBTreeMap(0);
+var liquorProductsStorage = StableBTreeMap(1);
+var supplyChainEventsStorage = StableBTreeMap(2);
+var saleRecordsStorage = StableBTreeMap(3);
+var inventoryAdjustmentsStorage = StableBTreeMap(
+  4
+);
+function generateId() {
+  return v4_default();
+}
+function isValidUsername(username) {
+  return username.length >= 3 && username.length <= 20 && /^[a-zA-Z0-9_-]+$/.test(username);
+}
+function isValidContactInfo(contactInfo) {
+  return contactInfo.length > 0 && contactInfo.length <= 100;
+}
+function isLegalAge(age) {
+  return age >= 18n;
+}
 var src_default = Canister({
-  registerUser: update2([UserPayload], Result(text, Errors), (payload) => {
-    if (!payload.username) {
-      return Err({ InvalidPayload: "Username is required" });
+  /**
+   * Registers a new user in the system
+   * @param payload - User registration information
+   * @returns Result containing either the created user or an error
+   */
+  registerUser: update2([UserPayload], Result(User, Errors), (payload) => {
+    try {
+      if (!payload.username) {
+        return Err({ InvalidPayload: "Username is required" });
+      }
+      if (!isValidUsername(payload.username)) {
+        return Err({
+          InvalidPayload: "Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens"
+        });
+      }
+      if (!isValidContactInfo(payload.contactInfo)) {
+        return Err({
+          InvalidPayload: "Invalid contact information"
+        });
+      }
+      const existingUser = Array.from(usersStorage.values()).find(
+        (user) => user.username.toLowerCase() === payload.username.toLowerCase()
+      );
+      if (existingUser) {
+        return Err({
+          UserAlreadyExists: `User with username ${payload.username} already exists`
+        });
+      }
+      const userId = generateId();
+      const currentTime = (/* @__PURE__ */ new Date()).toISOString();
+      const newUser = {
+        id: userId,
+        owner: ic.caller(),
+        ...payload,
+        points: 0n,
+        createdAt: currentTime,
+        lastUpdated: currentTime
+      };
+      usersStorage.insert(userId, newUser);
+      return Ok(newUser);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error creating user: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
     }
-    const existingUser = usersStorage.get(payload.username);
-    if (existingUser) {
-      return Err({ UserAlreadyExists: `User with username ${payload.username} already exists` });
+  }),
+  /**
+   * Retrieves a specific user by their ID
+   * @param userId - The ID of the user to retrieve
+   * @returns Result containing either the user or an error
+   */
+  getUser: query2([text], Result(User, Errors), (userId) => {
+    try {
+      const user = usersStorage.get(userId);
+      if (!user) {
+        return Err({
+          UserDoesNotExist: `User with ID ${userId} does not exist`
+        });
+      }
+      return Ok(user);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error retrieving user: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
     }
-    const createUser = {
-      id: ic.caller(),
-      username: payload.username,
-      role: payload.role,
-      points: 0n,
-      contactInfo: payload.contactInfo
-    };
-    usersStorage.insert(payload.username, createUser);
-    return Ok(`User with username ${payload.username} created successfully`);
   }),
-  addLiquorProduct: update2([LiquorProductPayload], Result(text, Errors), (payload) => {
-    if (!payload.name) {
-      return Err({ InvalidPayload: "Product name is required" });
+  /**
+   * Retrieves all users with pagination
+   * @param page - Page number (0-based)
+   * @param pageSize - Number of items per page
+   * @returns Result containing either an array of users or an error
+   */
+  getAllUsers: query2(
+    [GetAllUsersPayload],
+    // [page, pageSize]
+    Result(Vec2(User), Errors),
+    (payload) => {
+      try {
+        if (payload.pageSize === 0n) {
+          return Err({ InvalidPayload: "Page size must be greater than 0" });
+        }
+        const users = usersStorage.values();
+        if (users.length === 0) {
+          return Err({ UserDoesNotExist: "No users found in the system" });
+        }
+        const startIndex = Number(payload.page * payload.pageSize);
+        const endIndex = Number((payload.page + 1n) * payload.pageSize);
+        if (startIndex >= users.length) {
+          return Err({ InvalidPayload: "Page number exceeds available data" });
+        }
+        const paginatedUsers = users.slice(startIndex, endIndex);
+        return Ok(paginatedUsers);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error retrieving users: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
     }
-    const existingProduct = liquorProductsStorage.get(payload.name);
-    if (existingProduct) {
-      return Err({ ProductAlreadyExists: `Product with name ${payload.name} already exists` });
+  ),
+  /**
+   * Updates a user's information
+   * @param userId - The ID of the user to update
+   * @param payload - The updated user information
+   * @returns Result containing either the updated user or an error
+   */
+  updateUser: update2(
+    [text, UserPayload],
+    Result(User, Errors),
+    (userId, payload) => {
+      try {
+        const existingUser = usersStorage.get(userId);
+        if (!existingUser) {
+          return Err({
+            UserDoesNotExist: `User with ID ${userId} does not exist`
+          });
+        }
+        if (payload.username !== existingUser.username) {
+          if (!isValidUsername(payload.username)) {
+            return Err({
+              InvalidPayload: "Invalid username format"
+            });
+          }
+          const usernameExists = Array.from(usersStorage.values()).some(
+            (user) => user.id !== userId && user.username.toLowerCase() === payload.username.toLowerCase()
+          );
+          if (usernameExists) {
+            return Err({ UserAlreadyExists: "Username is already taken" });
+          }
+        }
+        const updatedUser = {
+          ...existingUser,
+          ...payload,
+          lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        usersStorage.insert(userId, updatedUser);
+        return Ok(updatedUser);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error updating user: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
     }
-    const product = {
-      id: ic.caller().toText(),
-      ...payload
-    };
-    liquorProductsStorage.insert(payload.name, product);
-    return Ok(`Product ${payload.name} added successfully`);
-  }),
-  listAllProducts: query2([], Vec2(LiquorProduct), () => {
-    return liquorProductsStorage.values();
-  }),
-  sellLiquorProduct: update2([SaleRecordPayload], Result(text, Errors), (payload) => {
-    const product = liquorProductsStorage.get(payload.liquorProductId);
-    if (!product) {
-      return Err({ ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist` });
+  ),
+  /**
+   * Deletes a user from the system
+   * @param userId - The ID of the user to delete
+   * @returns Result containing either a success message or an error
+   */
+  deleteUser: update2([text], Result(text, Errors), (userId) => {
+    try {
+      const existingUser = usersStorage.get(userId);
+      if (!existingUser) {
+        return Err({
+          UserDoesNotExist: `User with ID ${userId} does not exist`
+        });
+      }
+      usersStorage.remove(userId);
+      return Ok(`User with ID ${userId} deleted successfully`);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error deleting user: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
     }
-    if (product.currentStock < payload.quantity) {
-      return Err({ InsufficientStock: `Insufficient stock to sell ${payload.quantity} units` });
+  }),
+  /**
+   * Adds a new liquor product to the system
+   * @param payload - Liquor product information
+   * @returns Result containing either the created product or an error
+   */
+  addLiquorProduct: update2(
+    [LiquorProductPayload],
+    Result(LiquorProduct, Errors),
+    (payload) => {
+      try {
+        if (!payload.name) {
+          return Err({ InvalidPayload: "Product name is required" });
+        }
+        const productId = generateId();
+        const product = {
+          id: productId,
+          ...payload
+        };
+        liquorProductsStorage.insert(productId, product);
+        return Ok(product);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error adding liquor product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
     }
-    if (payload.customerAge < 21n) {
-      return Err({ AgeRestriction: `Customer must be at least 21 years old to purchase` });
+  ),
+  /**
+   * Retrieves a specific liquor product by its ID
+   * @param productId - The ID of the product to retrieve
+   * @returns Result containing either the product or an error
+   */
+  getLiquorProduct: query2(
+    [text],
+    Result(LiquorProduct, Errors),
+    (productId) => {
+      try {
+        const product = liquorProductsStorage.get(productId);
+        if (!product) {
+          return Err({
+            ProductDoesNotExist: `Product with ID ${productId} does not exist`
+          });
+        }
+        return Ok(product);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error retrieving product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
     }
-    const sale = {
-      id: ic.caller().toText(),
-      ...payload,
-      totalPrice: product.retailPrice * payload.quantity,
-      saleDate: ic.time()
-    };
-    product.currentStock -= payload.quantity;
-    liquorProductsStorage.insert(product.id, product);
-    saleRecordsStorage.insert(sale.id, sale);
-    return Ok(`Sold ${payload.quantity} units of ${product.name}`);
-  }),
-  listAllSales: query2([], Vec2(SaleRecord), () => {
-    return saleRecordsStorage.values();
-  }),
-  adjustInventory: update2([InventoryAdjustmentPayload], Result(text, Errors), (payload) => {
-    const product = liquorProductsStorage.get(payload.liquorProductId);
-    if (!product) {
-      return Err({ ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist` });
+  ),
+  /**
+   * Retrieves all liquor products of a specific type
+   * @param liquorType - The type of liquor products to retrieve
+   * @returns Result containing either an array of products or an error
+   */
+  getLiquorProductsByType: query2(
+    [LiquorType],
+    Result(Vec2(LiquorProduct), Errors),
+    (liquorType) => {
+      try {
+        const products = Array.from(liquorProductsStorage.values()).filter(
+          (product) => product.liquorType === liquorType
+        );
+        if (products.length === 0) {
+          return Err({
+            ProductDoesNotExist: `No products found for type ${liquorType}`
+          });
+        }
+        return Ok(products);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error retrieving products: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
     }
-    product.currentStock += payload.quantityChanged;
-    const adjustment = {
-      id: ic.caller().toText(),
-      ...payload,
-      adjustmentDate: ic.time()
-    };
-    liquorProductsStorage.insert(product.id, product);
-    inventoryAdjustmentsStorage.insert(adjustment.id, adjustment);
-    return Ok(`Inventory adjusted for product ${product.name}`);
+  ),
+  /**
+   * Retrieves all liquor products in the system
+   * @returns Result containing either an array of products or an error
+   */
+  listAllProducts: query2([], Result(Vec2(LiquorProduct), Errors), () => {
+    try {
+      const products = liquorProductsStorage.values();
+      if (products.length === 0) {
+        return Err({ ProductDoesNotExist: "No products found in the system" });
+      }
+      return Ok(products);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error retrieving products: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
+    }
   }),
-  listAllInventoryAdjustments: query2([], Vec2(InventoryAdjustment), () => {
-    return inventoryAdjustmentsStorage.values();
+  /**
+   * Updates a liquor product in the system
+   * @param productId - The ID of the product to update
+   * @param payload - The updated product information
+   * @returns Result containing either the updated product or an error
+   */
+  updateLiquorProduct: update2(
+    [text, LiquorProductPayload],
+    Result(LiquorProduct, Errors),
+    (productId, payload) => {
+      try {
+        const existingProduct = liquorProductsStorage.get(productId);
+        if (!existingProduct) {
+          return Err({
+            ProductDoesNotExist: `Product with ID ${productId} does not exist`
+          });
+        }
+        const updatedProduct = {
+          ...existingProduct,
+          ...payload
+        };
+        liquorProductsStorage.insert(productId, updatedProduct);
+        return Ok(updatedProduct);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error updating product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
+    }
+  ),
+  /**
+   * Deletes a liquor product from the system
+   * @param productId - The ID of the product to delete
+   * @returns Result containing either a success message or an error
+   */
+  deleteLiquorProduct: update2([text], Result(text, Errors), (productId) => {
+    try {
+      const existingProduct = liquorProductsStorage.get(productId);
+      if (!existingProduct) {
+        return Err({
+          ProductDoesNotExist: `Product with ID ${productId} does not exist`
+        });
+      }
+      liquorProductsStorage.remove(productId);
+      return Ok(`Product with ID ${productId} deleted successfully`);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error deleting product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
+    }
   }),
-  logSupplyChainEvent: update2([SupplyChainEventPayload], Result(text, Errors), (payload) => {
-    const event = {
-      id: ic.caller().toText(),
-      ...payload,
-      date: ic.time()
-    };
-    supplyChainEventsStorage.insert(event.id, event);
-    return Ok(`Supply chain event of type ${payload.eventType} recorded`);
+  /**
+   * Sells a liquor product to a customer
+   * @param payload - Sale record information
+   * @returns Result containing either a success message or an error
+   */
+  sellLiquorProduct: update2(
+    [SaleRecordPayload],
+    Result(SaleRecord, Errors),
+    (payload) => {
+      try {
+        const product = liquorProductsStorage.get(payload.liquorProductId);
+        if (!product) {
+          return Err({
+            ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist`
+          });
+        }
+        if (payload.quantity > product.currentStock) {
+          return Err({
+            InsufficientStock: `Insufficient stock for product ${product.name}`
+          });
+        }
+        if (!isLegalAge(payload.customerAge)) {
+          return Err({
+            AgeRestriction: "Customer must be 18 years or older to purchase alcohol"
+          });
+        }
+        const totalPrice = payload.quantity * product.retailPrice;
+        const saleId = generateId();
+        const saleDate = (/* @__PURE__ */ new Date()).toISOString();
+        const saleRecord = {
+          id: saleId,
+          costPrice: product.costPrice,
+          ...payload,
+          totalPrice,
+          saleDate
+        };
+        const updatedStock = product.currentStock - payload.quantity;
+        const updatedProduct = {
+          ...product,
+          currentStock: updatedStock
+        };
+        liquorProductsStorage.insert(payload.liquorProductId, updatedProduct);
+        saleRecordsStorage.insert(saleId, saleRecord);
+        return Ok(`Product ${product.name} sold successfully`);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error selling product: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
+    }
+  ),
+  /**
+   * Retrieves all sale records in the system
+   * @returns Result containing either an array of sale records or an error
+   */
+  listAllSales: query2([], Result(Vec2(SaleRecord), Errors), () => {
+    try {
+      const sales = saleRecordsStorage.values();
+      if (sales.length === 0) {
+        return Err({ ProductDoesNotExist: "No sales found in the system" });
+      }
+      return Ok(sales);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error retrieving sales: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
+    }
   }),
-  listSupplyChainEvents: query2([], Vec2(SupplyChainEvent), () => {
-    return supplyChainEventsStorage.values();
-  })
+  /**
+   * Adjusts the inventory of a liquor product
+   * @param payload - Inventory adjustment information
+   * @returns Result containing either a success message or an error
+   */
+  adjustInventory: update2(
+    [InventoryAdjustmentPayload],
+    Result(InventoryAdjustment, Errors),
+    (payload) => {
+      try {
+        const product = liquorProductsStorage.get(payload.liquorProductId);
+        if (!product) {
+          return Err({
+            ProductDoesNotExist: `Product with ID ${payload.liquorProductId} does not exist`
+          });
+        }
+        product.currentStock += payload.quantityChanged;
+        const adjustment = {
+          id: generateId(),
+          ...payload,
+          adjustmentDate: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        liquorProductsStorage.insert(payload.liquorProductId, product);
+        inventoryAdjustmentsStorage.insert(adjustment.id, adjustment);
+        return Ok(`Inventory adjusted for product ${product.name}`);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error adjusting inventory: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
+    }
+  ),
+  /**
+   * Retrieves all inventory adjustments in the system
+   * @returns Result containing either an array of inventory adjustments or an error
+   */
+  listAllInventoryAdjustments: query2([], Result(Vec2(InventoryAdjustment), Errors), () => {
+    try {
+      const adjustments = inventoryAdjustmentsStorage.values();
+      if (adjustments.length === 0) {
+        return Err({
+          ProductDoesNotExist: "No inventory adjustments found in the system"
+        });
+      }
+      return Ok(adjustments);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error retrieving inventory adjustments: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
+    }
+  }),
+  /**
+   * Logs a supply chain event in the system
+   * @param payload - Supply chain event information
+   * @returns Result containing either a success message or an error
+   */
+  logSupplyChainEvent: update2(
+    [SupplyChainEventPayload],
+    Result(text, Errors),
+    (payload) => {
+      try {
+        const event = {
+          id: ic.caller().toText(),
+          ...payload,
+          date: ic.time()
+        };
+        supplyChainEventsStorage.insert(event.id, event);
+        return Ok(`Supply chain event of type ${payload.eventType} recorded`);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error logging supply chain event: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
+    }
+  ),
+  /**
+   * Retrieves all supply chain events in the system
+   * @returns Result containing either an array of supply chain events or an error
+   */
+  listSupplyChainEvents: query2([], Result(Vec2(SupplyChainEvent), Errors), () => {
+    try {
+      const events = supplyChainEventsStorage.values();
+      if (events.length === 0) {
+        return Err({
+          ProductDoesNotExist: "No supply chain events found in the system"
+        });
+      }
+      return Ok(events);
+    } catch (error2) {
+      return Err({
+        SystemError: `Error retrieving supply chain events: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+      });
+    }
+  }),
+  /**
+   * Retrieves a specific supply chain event by its ID
+   * @param eventId - The ID of the event to retrieve
+   * @returns Result containing either the event or an error
+   */
+  getSupplyChainEvent: query2(
+    [text],
+    Result(SupplyChainEvent, Errors),
+    (eventId) => {
+      try {
+        const event = supplyChainEventsStorage.get(eventId);
+        if (!event) {
+          return Err({
+            ProductDoesNotExist: `Supply chain event with ID ${eventId} does not exist`
+          });
+        }
+        return Ok(event);
+      } catch (error2) {
+        return Err({
+          SystemError: `Error retrieving supply chain event: ${error2 instanceof Error ? error2.message : "Unknown error"}`
+        });
+      }
+    }
+  )
 });
 
 // <stdin>
