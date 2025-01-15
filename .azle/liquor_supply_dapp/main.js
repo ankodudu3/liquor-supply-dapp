@@ -56531,11 +56531,15 @@ var src_default = Canister({
     (liquorType) => {
       try {
         const products = Array.from(liquorProductsStorage.values()).filter(
-          (product) => product.liquorType === liquorType
+          (product) => {
+            const productType = Object.keys(product.liquorType)[0];
+            const requestedType = Object.keys(liquorType)[0];
+            return productType === requestedType;
+          }
         );
         if (products.length === 0) {
           return Err({
-            ProductDoesNotExist: `No products found for type ${liquorType}`
+            ProductDoesNotExist: `No products found for type ${Object.keys(liquorType)[0]}`
           });
         }
         return Ok(products);
@@ -56718,21 +56722,25 @@ var src_default = Canister({
    * Retrieves all inventory adjustments in the system
    * @returns Result containing either an array of inventory adjustments or an error
    */
-  listAllInventoryAdjustments: query2([], Result(Vec2(InventoryAdjustment), Errors), () => {
-    try {
-      const adjustments = inventoryAdjustmentsStorage.values();
-      if (adjustments.length === 0) {
+  listAllInventoryAdjustments: query2(
+    [],
+    Result(Vec2(InventoryAdjustment), Errors),
+    () => {
+      try {
+        const adjustments = inventoryAdjustmentsStorage.values();
+        if (adjustments.length === 0) {
+          return Err({
+            ProductDoesNotExist: "No inventory adjustments found in the system"
+          });
+        }
+        return Ok(adjustments);
+      } catch (error2) {
         return Err({
-          ProductDoesNotExist: "No inventory adjustments found in the system"
+          SystemError: `Error retrieving inventory adjustments: ${error2 instanceof Error ? error2.message : "Unknown error"}`
         });
       }
-      return Ok(adjustments);
-    } catch (error2) {
-      return Err({
-        SystemError: `Error retrieving inventory adjustments: ${error2 instanceof Error ? error2.message : "Unknown error"}`
-      });
     }
-  }),
+  ),
   /**
    * Logs a supply chain event in the system
    * @param payload - Supply chain event information
@@ -56761,21 +56769,25 @@ var src_default = Canister({
    * Retrieves all supply chain events in the system
    * @returns Result containing either an array of supply chain events or an error
    */
-  listSupplyChainEvents: query2([], Result(Vec2(SupplyChainEvent), Errors), () => {
-    try {
-      const events = supplyChainEventsStorage.values();
-      if (events.length === 0) {
+  listSupplyChainEvents: query2(
+    [],
+    Result(Vec2(SupplyChainEvent), Errors),
+    () => {
+      try {
+        const events = supplyChainEventsStorage.values();
+        if (events.length === 0) {
+          return Err({
+            ProductDoesNotExist: "No supply chain events found in the system"
+          });
+        }
+        return Ok(events);
+      } catch (error2) {
         return Err({
-          ProductDoesNotExist: "No supply chain events found in the system"
+          SystemError: `Error retrieving supply chain events: ${error2 instanceof Error ? error2.message : "Unknown error"}`
         });
       }
-      return Ok(events);
-    } catch (error2) {
-      return Err({
-        SystemError: `Error retrieving supply chain events: ${error2 instanceof Error ? error2.message : "Unknown error"}`
-      });
     }
-  }),
+  ),
   /**
    * Retrieves a specific supply chain event by its ID
    * @param eventId - The ID of the event to retrieve

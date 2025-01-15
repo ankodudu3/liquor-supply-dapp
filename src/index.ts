@@ -653,12 +653,19 @@ export default Canister({
     (liquorType) => {
       try {
         const products = Array.from(liquorProductsStorage.values()).filter(
-          (product) => product.liquorType === liquorType
+          (product) => {
+            // Compare the variant types by checking their specific variant case
+            const productType = Object.keys(product.liquorType)[0];
+            const requestedType = Object.keys(liquorType)[0];
+            return productType === requestedType;
+          }
         );
 
         if (products.length === 0) {
           return Err({
-            ProductDoesNotExist: `No products found for type ${liquorType}`,
+            ProductDoesNotExist: `No products found for type ${
+              Object.keys(liquorType)[0]
+            }`,
           });
         }
 
@@ -828,7 +835,7 @@ export default Canister({
    * Retrieves all sale records in the system
    * @returns Result containing either an array of sale records or an error
    */
-  listAllSales: query([],  Result(Vec(SaleRecord), Errors), () => {
+  listAllSales: query([], Result(Vec(SaleRecord), Errors), () => {
     try {
       const sales = saleRecordsStorage.values();
       if (sales.length === 0) {
@@ -887,23 +894,27 @@ export default Canister({
    * Retrieves all inventory adjustments in the system
    * @returns Result containing either an array of inventory adjustments or an error
    */
-  listAllInventoryAdjustments: query([],  Result(Vec(InventoryAdjustment), Errors), () => {
-    try {
-      const adjustments = inventoryAdjustmentsStorage.values();
-      if (adjustments.length === 0) {
+  listAllInventoryAdjustments: query(
+    [],
+    Result(Vec(InventoryAdjustment), Errors),
+    () => {
+      try {
+        const adjustments = inventoryAdjustmentsStorage.values();
+        if (adjustments.length === 0) {
+          return Err({
+            ProductDoesNotExist: "No inventory adjustments found in the system",
+          });
+        }
+        return Ok(adjustments);
+      } catch (error) {
         return Err({
-          ProductDoesNotExist: "No inventory adjustments found in the system",
+          SystemError: `Error retrieving inventory adjustments: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
         });
       }
-      return Ok(adjustments);
-    } catch (error) {
-      return Err({
-        SystemError: `Error retrieving inventory adjustments: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      });
     }
-  }),
+  ),
 
   /**
    * Logs a supply chain event in the system
@@ -938,23 +949,27 @@ export default Canister({
    * Retrieves all supply chain events in the system
    * @returns Result containing either an array of supply chain events or an error
    */
-  listSupplyChainEvents: query([],  Result(Vec(SupplyChainEvent), Errors), () => {
-    try {
-      const events = supplyChainEventsStorage.values();
-      if (events.length === 0) {
+  listSupplyChainEvents: query(
+    [],
+    Result(Vec(SupplyChainEvent), Errors),
+    () => {
+      try {
+        const events = supplyChainEventsStorage.values();
+        if (events.length === 0) {
+          return Err({
+            ProductDoesNotExist: "No supply chain events found in the system",
+          });
+        }
+        return Ok(events);
+      } catch (error) {
         return Err({
-          ProductDoesNotExist: "No supply chain events found in the system",
+          SystemError: `Error retrieving supply chain events: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
         });
       }
-      return Ok(events);
-    } catch (error) {
-      return Err({
-        SystemError: `Error retrieving supply chain events: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      });
     }
-  }),
+  ),
 
   /**
    * Retrieves a specific supply chain event by its ID
